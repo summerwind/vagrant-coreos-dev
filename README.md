@@ -1,4 +1,4 @@
-# Yet another Vagrantfile for CoreOS
+# Yet another Vagrantfile for Kubernetes
 
 This repository provides a template Vagrantfile to create a CoreOS with Kubernetes using VirtualBox. This repository is forked from [coreos/coreos-kubernetes](https://github.com/coreos/coreos-kubernetes).
 
@@ -13,7 +13,7 @@ $ vagrant up
 Setup the configuration of Kubernetes.
 
 ```
-$ sh utils/setup-kube-config.sh
+$ sh utils/kube-config.sh
 ```
 
 Access to the Kubernetes on virtual machine.

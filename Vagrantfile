@@ -2,52 +2,80 @@
 # # vi: set ft=ruby :
 
 require 'fileutils'
-require 'open-uri'
-require 'tempfile'
-require 'yaml'
+require "erb"
 
 Vagrant.require_version ">= 1.6.0"
 
-CLUSTER_IP="10.3.0.1"
-NODE_IP = "172.16.10.10"
-USER_DATA_PATH = File.expand_path("user-data")
-SSL_TARBALL_PATH = File.expand_path("ssl/controller.tar")
+K8S_VERSION = "v1.1.8"
+K8S_CLUSTER_IP = "10.3.0.1"
+K8S_NODE_IP = "172.16.10.10"
+K8S_POD_IP_RANGE = "10.2.0.0/16"
+K8S_SERVICE_IP_RANGE = "10.3.0.0/24"
+K8S_API_SERVICE_IP = "10.3.0.1"
+K8S_DNS_SERVICE_IP = "10.3.0.10"
+ETCD_ENDPOINTS = "http://127.0.0.1:2379"
 
-system("mkdir -p ssl && ./utils/init-ssl-ca ssl") or abort ("failed generating SSL CA artifacts")
-system("./utils/init-ssl ssl apiserver controller IP.1=#{NODE_IP},IP.2=#{CLUSTER_IP}") or abort ("failed generating SSL certificate artifacts")
-system("./utils/init-ssl ssl admin kube-admin") or abort("failed generating admin SSL artifacts")
+FILE_TEMPLATES = [
+  "systemd/kubelet.service",
+  "systemd/kube-apiserver.service",
+  "systemd/kube-controller-manager.service",
+  "systemd/kube-scheduler.service",
+  "systemd/kube-proxy.service",
+  "systemd/docker.service.d/10-dev.conf",
+  "systemd/docker.service.d/40-flannel.conf",
+  "systemd/flanneld.service.d/40-ExecStartPre-symlink.conf",
+  "flannel/options.env",
+  "scripts/init-flannel.sh",
+  "scripts/init-kube-system.sh",
+  "kubernetes/kube-system.json",
+  "kubernetes/kube-dns-rc.json",
+  "kubernetes/kube-dns-svc.json",
+]
+
+PATH_USER_DATA = "user-data"
+PATH_TLS_TARBALL = "tls/controller.tar"
+
+system("mkdir -p tls")
+system("./utils/init-tls-ca tls") or abort ("failed generating TLS CA artifacts")
+system("./utils/init-tls tls apiserver controller IP.1=#{K8S_NODE_IP},IP.2=#{K8S_CLUSTER_IP}") or abort ("failed generating TLS certificate artifacts")
+system("./utils/init-tls tls admin kube-admin") or abort("failed generating admin TLS artifacts")
 
 Vagrant.configure("2") do |config|
-  # always use Vagrant's insecure key
   config.ssh.insert_key = false
 
   config.vm.box = "coreos-alpha"
   config.vm.box_version = ">= 970.0.0"
   config.vm.box_url = "http://alpha.release.core-os.net/amd64-usr/current/coreos_production_vagrant.json"
 
-  config.vm.provider :virtualbox do |v|
-    v.name = "coreos-dev"
-    v.cpus = 2
-    v.gui = false
-    v.memory = 4096
+  config.vm.network :private_network, ip: K8S_NODE_IP
 
-    # On VirtualBox, we don't have guest additions or a functional vboxsf
-    # in CoreOS, so tell Vagrant that so it can be smarter.
+  config.vm.provider :virtualbox do |v|
+    v.name = "Kubernetes"
+    v.cpus = 2
+    v.memory = 4096
+    v.gui = false
     v.check_guest_additions = false
-    v.functional_vboxsf     = false
+    v.functional_vboxsf = false
   end
 
-  # plugin conflict
   if Vagrant.has_plugin?("vagrant-vbguest") then
     config.vbguest.auto_update = false
   end
 
-  config.vm.network :private_network, ip: NODE_IP
+  FILE_TEMPLATES.each do |template|
+    dir = "files/" + File.dirname(template)
+    if not Dir.exist?(dir) then
+      FileUtils.mkdir_p(dir)
+    end
 
-  config.vm.provision :file, :source => SSL_TARBALL_PATH, :destination => "/tmp/ssl.tar"
-  config.vm.provision :shell, :inline => "mkdir -p /etc/kubernetes/ssl && tar -C /etc/kubernetes/ssl -xf /tmp/ssl.tar", :privileged => true
+    file = "files/#{template}"
+    File.write(file, ERB.new(File.read("templates/#{template}")).result(binding))
+    config.vm.provision :file, :source => file, :destination => "/tmp/#{file}"
+  end
 
-  config.vm.provision :file, :source => USER_DATA_PATH, :destination => "/tmp/vagrantfile-user-data"
+  config.vm.provision :file, :source => PATH_TLS_TARBALL, :destination => "/tmp/tls.tar"
+
+  config.vm.provision :file, :source => PATH_USER_DATA, :destination => "/tmp/vagrantfile-user-data"
   config.vm.provision :shell, :inline => "mv /tmp/vagrantfile-user-data /var/lib/coreos-vagrant/", :privileged => true
-
 end
+

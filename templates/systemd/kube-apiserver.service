@@ -1,0 +1,30 @@
+[Unit]
+Description=Kubernetes API Server
+Requires=docker.service
+After=docker.service
+
+[Service]
+ExecStart=/usr/bin/docker run -i \
+  --net=host \
+  -v /etc/kubernetes/tls:/etc/kubernetes/tls \
+  -v /usr/share/ca-certificates:/etc/ssl/certs \
+  gcr.io/google_containers/hyperkube:<%= K8S_VERSION %> \
+  /hyperkube \
+  apiserver \
+  --bind-address=0.0.0.0 \
+  --etcd-servers=<%= ETCD_ENDPOINTS %> \
+  --allow-privileged=true \
+  --service-cluster-ip-range=<%= K8S_SERVICE_IP_RANGE %> \
+  --secure-port=443 \
+  --advertise-address=<%= K8S_NODE_IP %> \
+  --admission-control=NamespaceLifecycle,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota \
+  --tls-cert-file=/etc/kubernetes/tls/apiserver.pem \
+  --tls-private-key-file=/etc/kubernetes/tls/apiserver-key.pem \
+  --client-ca-file=/etc/kubernetes/tls/ca.pem \
+  --service-account-key-file=/etc/kubernetes/tls/apiserver-key.pem \
+  --runtime-config=extensions/v1beta1/deployments=true,extensions/v1beta1/daemonsets=true
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+[Unit]
+Description=Kubernetes Controller Manager
+Requires=kube-apiserver.service
+After=kube-apiserver.service
+
+[Service]
+ExecStart=/usr/bin/docker run -i \
+  --net=host \
+  -v /etc/kubernetes/tls:/etc/kubernetes/tls \
+  -v /usr/share/ca-certificates:/etc/ssl/certs \
+  gcr.io/google_containers/hyperkube:<%= K8S_VERSION %> \
+  /hyperkube \
+  controller-manager \
+  --master=http://127.0.0.1:8080 \
+  --service-account-private-key-file=/etc/kubernetes/tls/apiserver-key.pem \
+  --root-ca-file=/etc/kubernetes/tls/ca.pem
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

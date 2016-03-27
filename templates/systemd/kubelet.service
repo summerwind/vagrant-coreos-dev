@@ -1,0 +1,13 @@
+[Service]
+ExecStart=/usr/bin/kubelet \
+  --api_servers=http://127.0.0.1:8080 \
+  --register-node=true \
+  --allow-privileged=true \
+  --hostname-override=<%= K8S_NODE_IP %> \
+  --cluster_dns=<%= K8S_DNS_SERVICE_IP %> \
+  --cluster_domain=cluster.local
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

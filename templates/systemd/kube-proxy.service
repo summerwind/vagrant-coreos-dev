@@ -1,0 +1,20 @@
+[Unit]
+Description=Kubernetes network proxy
+Requires=kube-apiserver.service
+After=kube-apiserver.service
+
+[Service]
+ExecStart=/usr/bin/docker run -i \
+  --net=host \
+  --privileged \
+  -v /usr/share/ca-certificates:/etc/ssl/certs \
+  gcr.io/google_containers/hyperkube:<%= K8S_VERSION %> \
+  /hyperkube \
+  proxy \
+  --master=http://127.0.0.1:8080 \
+  --proxy-mode=iptables
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
